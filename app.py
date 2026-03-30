@@ -10,7 +10,6 @@ load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 
-# 召喚 Gemini AI 模型 
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- 基礎設定：資料夾與資料庫 ---
@@ -33,7 +32,6 @@ def save_db(data):
 wardrobe_data = load_db()
 
 st.title("我的 AI 數位衣櫥 👕👗")
-# 這次我們有三個分頁了！
 tab1, tab2, tab3 = st.tabs(["📤 上傳與 AI 辨識", "🚪 我的衣櫥與篩選", "🪄 智能穿搭建議"])
 
 # --- 第一個分頁：上傳區 ---
@@ -63,9 +61,9 @@ with tab1:
                 
                 st.success(f"辨識完成！AI 貼上的標籤是：{', '.join(tags)}")
 
-# --- 第二個分頁：瀏覽區 ---
+# --- 第二個分頁：瀏覽區 (新增垃圾桶功能！) ---
 with tab2:
-    st.write("用標籤快速找衣服吧！")
+    st.write("用標籤快速找衣服，或把不要的衣服丟進垃圾桶 🗑️")
     
     all_tags = []
     for tags in wardrobe_data.values():
@@ -90,12 +88,26 @@ with tab2:
                 with cols[i % 3]:
                     st.image(img, use_container_width=True)
                     st.caption(f"🏷️ {', '.join(wardrobe_data[file_name])}")
+                    
+                    # === 垃圾桶按鈕的核心邏輯 ===
+                    # 注意：Streamlit 規定每個按鈕都要有一個獨一無二的 key，我們用檔案名稱當作 key
+                    if st.button("🗑️ 刪除這件", key=f"del_{file_name}"):
+                        # 1. 從圖片資料夾中刪除檔案
+                        try:
+                            os.remove(img_path)
+                        except:
+                            pass
+                        # 2. 從文字資料庫中刪除標籤紀錄
+                        del wardrobe_data[file_name]
+                        save_db(wardrobe_data)
+                        
+                        # 3. 讓網頁瞬間重新整理，畫面上的衣服就會消失！
+                        st.rerun()
 
-# --- 第三個分頁：穿搭建議區 (全新功能！) ---
+# --- 第三個分頁：穿搭建議區 ---
 with tab3:
     st.write("告訴我你今天的行程和天氣，我來幫你搭衣服！")
     
-    # 讓使用者輸入情境
     schedule = st.text_input("📍 今天的行程或目的地？", placeholder="例如：去小酒館約會、去健身運動，或是準備去京都/大阪旅遊")
     weather = st.text_input("🌤️ 天氣狀況如何？", placeholder="例如：台南目前天氣很熱，或是大約 15 度有點冷")
     
@@ -103,15 +115,13 @@ with tab3:
         if not schedule or not weather:
             st.warning("請先輸入行程和天氣喔！")
         elif len(wardrobe_data) < 2:
-            st.warning("衣櫥裡的衣服還太少，請先去「上傳區」多新增幾件衣服吧！(至少需要一件上衣和一件褲子)")
+            st.warning("衣櫥裡的衣服還太少，請先去「上傳區」多新增幾件衣服吧！")
         else:
             with st.spinner("AI 造型師正在翻找你的衣櫥..."):
-                # 將衣櫥裡的標籤資料轉成文字，念給 AI 聽
                 wardrobe_str = ""
                 for file_name, tags in wardrobe_data.items():
                     wardrobe_str += f"- 檔名: {file_name}, 標籤: {', '.join(tags)}\n"
                 
-                # 給 AI 的穿搭指令 (Prompt)
                 outfit_prompt = f"""
                 你是一個專業的穿搭顧問。以下是我衣櫥裡目前所有的衣服和它們的標籤：
                 {wardrobe_str}
@@ -122,12 +132,10 @@ with tab3:
                 """
                 
                 try:
-                    # 呼叫 AI 產生建議
                     response = model.generate_content(outfit_prompt)
                     st.write("### ✨ AI 穿搭建議")
                     st.write(response.text)
                     
-                    # 小彩蛋：如果 AI 的回答中有提到衣服的檔名，我們就把那件衣服的照片秀出來！
                     st.write("### 👕 推薦單品預覽")
                     cols = st.columns(3)
                     col_idx = 0
