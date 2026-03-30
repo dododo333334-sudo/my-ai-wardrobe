@@ -5,21 +5,18 @@ import json
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# === 🌟 介面大美容：設定網頁標題與圖示 (必須放在最第一行) ===
+# === 🌟 介面大美容 ===
 st.set_page_config(page_title="我的 AI 數位衣櫥", page_icon="👗", layout="centered")
 
-# === 🌟 介面大美容：注入 CSS 美化語法 ===
 st.markdown("""
 <style>
-/* 隱藏預設的頂部選單和底部浮水印，讓畫面更像原生 App */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-/* 美化所有按鈕：圓角、柔和陰影、莫蘭迪質感色調 */
 .stButton>button {
     border-radius: 20px;
-    background-color: #9FB1A6; /* 莫蘭迪灰綠色 */
+    background-color: #9FB1A6; 
     color: white;
     border: none;
     padding: 10px 24px;
@@ -28,7 +25,6 @@ header {visibility: hidden;}
     font-weight: bold;
 }
 
-/* 按鈕的懸停動畫：滑鼠移過去會微微浮起並變色 */
 .stButton>button:hover {
     background-color: #82968A;
     transform: translateY(-2px);
@@ -36,7 +32,6 @@ header {visibility: hidden;}
     color: white;
 }
 
-/* 針對上傳區塊稍微調整邊距 */
 .css-1v0mbdj {
     border-radius: 15px;
 }
@@ -69,26 +64,40 @@ def save_db(data):
 
 wardrobe_data = load_db()
 
-# 標題也加一點點裝飾
 st.markdown("<h1 style='text-align: center; color: #4A4A4A;'>✨ 我的 AI 數位衣櫥 ✨</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #888888; margin-bottom: 20px;'>你的專屬智能穿搭管家</p>", unsafe_allow_html=True)
 
 tab1, tab2, tab3 = st.tabs(["📤 上傳新衣", "🚪 瀏覽衣櫥", "🪄 穿搭建議"])
 
-# --- 第一個分頁：上傳區 ---
+# --- 第一個分頁：上傳區 (🌟 邏輯修改區 🌟) ---
 with tab1:
     uploaded_file = st.file_uploader("拍張照或選擇圖片", type=["jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
-        st.image(image, caption="準備辨識中...", use_container_width=True)
+        st.image(image, caption="上傳的衣服照片", use_container_width=True)
         
-        if st.button("✨ 讓 AI 自動產生標籤", use_container_width=True):
+        # 1. 自動儲存邏輯：只要有照片，就立刻存進衣櫥
+        save_path = os.path.join(SAVE_DIR, uploaded_file.name)
+        
+        # 檢查這件衣服是不是新來的（不在資料庫裡）
+        if uploaded_file.name not in wardrobe_data:
+            # 存圖片檔案
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            # 給它一個預設標籤，存入資料庫
+            wardrobe_data[uploaded_file.name] = ["未分類"]
+            save_db(wardrobe_data)
+            st.success("✅ 照片已自動存入衣櫥！（目前標籤：未分類）")
+        else:
+            # 如果已經存過了，就顯示目前的標籤提醒你
+            current_tags = wardrobe_data[uploaded_file.name]
+            st.info(f"這件衣服已經在衣櫥裡囉！目前標籤：{', '.join(current_tags)}")
+        
+        # 2. AI 辨識按鈕 (現在變成獨立的選用功能了！)
+        if st.button("✨ 讓 AI 幫這件衣服自動貼標籤", use_container_width=True):
             with st.spinner("AI 正在仔細看這件衣服..."):
-                save_path = os.path.join(SAVE_DIR, uploaded_file.name)
-                with open(save_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                
                 prompt = "這是一件衣服的圖片。請用繁體中文，給這件衣服 4 個標籤：1.季節(如:夏季/冬季)、2.類型(如:短袖/外套/長褲)、3.顏色(如:黑色/白色)、4.風格(如:休閒/正式/運動)。請直接輸出這4個標籤，用逗號隔開，不要講其他廢話。"
                 
                 response = model.generate_content([prompt, image])
@@ -96,10 +105,11 @@ with tab1:
                 tags = tags_text.replace('，', ',').split(',')
                 tags = [tag.strip() for tag in tags if tag.strip()]
                 
+                # 辨識完成後，用新標籤覆蓋掉原本的「未分類」
                 wardrobe_data[uploaded_file.name] = tags
                 save_db(wardrobe_data)
                 
-                st.success(f"辨識完成！標籤：{', '.join(tags)}")
+                st.success(f"辨識完成！標籤已更新為：{', '.join(tags)}")
 
 # --- 第二個分頁：瀏覽區 ---
 with tab2:
