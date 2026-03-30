@@ -4,6 +4,10 @@ import os
 import json
 import google.generativeai as genai
 from dotenv import load_dotenv
+import pillow_heif # 🌟 新增：載入蘋果照片翻譯蒟蒻
+
+# 🌟 新增：讓系統正式支援讀取 iPhone 的 HEIC 照片
+pillow_heif.register_heif_opener()
 
 # === 🌟 介面大美容 ===
 st.set_page_config(page_title="我的 AI 數位衣櫥", page_icon="👗", layout="centered")
@@ -69,43 +73,41 @@ st.markdown("<p style='text-align: center; color: #888888; margin-bottom: 20px;'
 
 tab1, tab2, tab3 = st.tabs(["📤 上傳新衣", "🚪 瀏覽衣櫥", "🪄 穿搭建議"])
 
-# --- 第一個分頁：上傳區 (🌟 邏輯修改區 🌟) ---
+# --- 第一個分頁：上傳區 ---
 with tab1:
-    uploaded_file = st.file_uploader("拍張照或選擇圖片", type=["jpg", "jpeg", "png"])
+    # 🌟 修改：在 type 裡面加入 heic, heif, dng, raw 這些蘋果可能出現的格式
+    uploaded_file = st.file_uploader("拍張照或選擇圖片", type=["jpg", "jpeg", "png", "heic", "heif", "dng", "raw"])
 
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
         st.image(image, caption="上傳的衣服照片", use_container_width=True)
         
-        # 1. 自動儲存邏輯：只要有照片，就立刻存進衣櫥
         save_path = os.path.join(SAVE_DIR, uploaded_file.name)
         
-        # 檢查這件衣服是不是新來的（不在資料庫裡）
         if uploaded_file.name not in wardrobe_data:
-            # 存圖片檔案
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             
-            # 給它一個預設標籤，存入資料庫
             wardrobe_data[uploaded_file.name] = ["未分類"]
             save_db(wardrobe_data)
             st.success("✅ 照片已自動存入衣櫥！（目前標籤：未分類）")
         else:
-            # 如果已經存過了，就顯示目前的標籤提醒你
             current_tags = wardrobe_data[uploaded_file.name]
             st.info(f"這件衣服已經在衣櫥裡囉！目前標籤：{', '.join(current_tags)}")
         
-        # 2. AI 辨識按鈕 (現在變成獨立的選用功能了！)
         if st.button("✨ 讓 AI 幫這件衣服自動貼標籤", use_container_width=True):
             with st.spinner("AI 正在仔細看這件衣服..."):
                 prompt = "這是一件衣服的圖片。請用繁體中文，給這件衣服 4 個標籤：1.季節(如:夏季/冬季)、2.類型(如:短袖/外套/長褲)、3.顏色(如:黑色/白色)、4.風格(如:休閒/正式/運動)。請直接輸出這4個標籤，用逗號隔開，不要講其他廢話。"
                 
+                # 🌟 如果是 HEIC 檔，AI 模型可能也吃不消，我們在傳給 AI 前順手把它轉成通用 RGB 模式
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+                    
                 response = model.generate_content([prompt, image])
                 tags_text = response.text.strip()
                 tags = tags_text.replace('，', ',').split(',')
                 tags = [tag.strip() for tag in tags if tag.strip()]
                 
-                # 辨識完成後，用新標籤覆蓋掉原本的「未分類」
                 wardrobe_data[uploaded_file.name] = tags
                 save_db(wardrobe_data)
                 
