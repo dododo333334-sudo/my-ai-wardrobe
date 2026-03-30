@@ -5,6 +5,44 @@ import json
 import google.generativeai as genai
 from dotenv import load_dotenv
 
+# === 🌟 介面大美容：設定網頁標題與圖示 (必須放在最第一行) ===
+st.set_page_config(page_title="我的 AI 數位衣櫥", page_icon="👗", layout="centered")
+
+# === 🌟 介面大美容：注入 CSS 美化語法 ===
+st.markdown("""
+<style>
+/* 隱藏預設的頂部選單和底部浮水印，讓畫面更像原生 App */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* 美化所有按鈕：圓角、柔和陰影、莫蘭迪質感色調 */
+.stButton>button {
+    border-radius: 20px;
+    background-color: #9FB1A6; /* 莫蘭迪灰綠色 */
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+/* 按鈕的懸停動畫：滑鼠移過去會微微浮起並變色 */
+.stButton>button:hover {
+    background-color: #82968A;
+    transform: translateY(-2px);
+    box-shadow: 2px 4px 12px rgba(0,0,0,0.15);
+    color: white;
+}
+
+/* 針對上傳區塊稍微調整邊距 */
+.css-1v0mbdj {
+    border-radius: 15px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # --- 讀取你的 API 金鑰 ---
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -31,19 +69,21 @@ def save_db(data):
 
 wardrobe_data = load_db()
 
-st.title("我的 AI 數位衣櫥 👕👗")
-tab1, tab2, tab3 = st.tabs(["📤 上傳與 AI 辨識", "🚪 我的衣櫥與篩選", "🪄 智能穿搭建議"])
+# 標題也加一點點裝飾
+st.markdown("<h1 style='text-align: center; color: #4A4A4A;'>✨ 我的 AI 數位衣櫥 ✨</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #888888; margin-bottom: 20px;'>你的專屬智能穿搭管家</p>", unsafe_allow_html=True)
+
+tab1, tab2, tab3 = st.tabs(["📤 上傳新衣", "🚪 瀏覽衣櫥", "🪄 穿搭建議"])
 
 # --- 第一個分頁：上傳區 ---
 with tab1:
-    st.write("上傳衣服，AI 會自動幫你分析並貼上標籤！")
-    uploaded_file = st.file_uploader("選擇衣服照片", type=["jpg", "jpeg", "png"])
+    uploaded_file = st.file_uploader("拍張照或選擇圖片", type=["jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
         st.image(image, caption="準備辨識中...", use_container_width=True)
         
-        if st.button("✨ 讓 AI 自動產生標籤"):
+        if st.button("✨ 讓 AI 自動產生標籤", use_container_width=True):
             with st.spinner("AI 正在仔細看這件衣服..."):
                 save_path = os.path.join(SAVE_DIR, uploaded_file.name)
                 with open(save_path, "wb") as f:
@@ -59,12 +99,10 @@ with tab1:
                 wardrobe_data[uploaded_file.name] = tags
                 save_db(wardrobe_data)
                 
-                st.success(f"辨識完成！AI 貼上的標籤是：{', '.join(tags)}")
+                st.success(f"辨識完成！標籤：{', '.join(tags)}")
 
-# --- 第二個分頁：瀏覽區 (新增垃圾桶功能！) ---
+# --- 第二個分頁：瀏覽區 ---
 with tab2:
-    st.write("用標籤快速找衣服，或把不要的衣服丟進垃圾桶 🗑️")
-    
     all_tags = []
     for tags in wardrobe_data.values():
         all_tags.extend(tags)
@@ -89,29 +127,21 @@ with tab2:
                     st.image(img, use_container_width=True)
                     st.caption(f"🏷️ {', '.join(wardrobe_data[file_name])}")
                     
-                    # === 垃圾桶按鈕的核心邏輯 ===
-                    # 注意：Streamlit 規定每個按鈕都要有一個獨一無二的 key，我們用檔案名稱當作 key
-                    if st.button("🗑️ 刪除這件", key=f"del_{file_name}"):
-                        # 1. 從圖片資料夾中刪除檔案
+                    if st.button("🗑️ 刪除", key=f"del_{file_name}", use_container_width=True):
                         try:
                             os.remove(img_path)
                         except:
                             pass
-                        # 2. 從文字資料庫中刪除標籤紀錄
                         del wardrobe_data[file_name]
                         save_db(wardrobe_data)
-                        
-                        # 3. 讓網頁瞬間重新整理，畫面上的衣服就會消失！
                         st.rerun()
 
 # --- 第三個分頁：穿搭建議區 ---
 with tab3:
-    st.write("告訴我你今天的行程和天氣，我來幫你搭衣服！")
+    schedule = st.text_input("📍 今天的行程或目的地？", placeholder="例如：去小酒館約會、去健身運動...")
+    weather = st.text_input("🌤️ 天氣狀況如何？", placeholder="例如：台南目前 26 度晴天...")
     
-    schedule = st.text_input("📍 今天的行程或目的地？", placeholder="例如：去小酒館約會、去健身運動，或是準備去京都/大阪旅遊")
-    weather = st.text_input("🌤️ 天氣狀況如何？", placeholder="例如：台南目前天氣很熱，或是大約 15 度有點冷")
-    
-    if st.button("👗 請 AI 幫我搭配！"):
+    if st.button("👗 請 AI 幫我搭配！", use_container_width=True):
         if not schedule or not weather:
             st.warning("請先輸入行程和天氣喔！")
         elif len(wardrobe_data) < 2:
@@ -133,10 +163,10 @@ with tab3:
                 
                 try:
                     response = model.generate_content(outfit_prompt)
-                    st.write("### ✨ AI 穿搭建議")
-                    st.write(response.text)
+                    st.markdown("### ✨ AI 穿搭建議")
+                    st.info(response.text)
                     
-                    st.write("### 👕 推薦單品預覽")
+                    st.markdown("### 👕 推薦單品預覽")
                     cols = st.columns(3)
                     col_idx = 0
                     for file_name in wardrobe_data.keys():
@@ -145,7 +175,7 @@ with tab3:
                             if os.path.exists(img_path):
                                 img = Image.open(img_path)
                                 with cols[col_idx % 3]:
-                                    st.image(img, caption=file_name, use_container_width=True)
+                                    st.image(img, use_container_width=True)
                                 col_idx += 1
                                 
                 except Exception as e:
