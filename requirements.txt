@@ -3,3 +3,5 @@ pillow
 google-generativeai
 python-dotenv
 pillow-heif
+cloudinary
+requests
